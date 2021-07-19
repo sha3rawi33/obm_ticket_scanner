@@ -153,11 +153,15 @@ class _QRViewExampleState extends State<QRViewExample> {
   late Widget statusWidget;
 
   void setDefault() {
-      flashOn = false;
-      frontCam = false;
-      buttonColor = Colors.blueAccent;
-      widgetText = "start scanning tickets to show their status";
-      statusColor = Colors.blueGrey;
+    flashOn = false;
+    frontCam = false;
+    buttonColor = Colors.blueAccent;
+    widgetText = "start scanning tickets to show their status";
+    statusColor = Colors.blueGrey;
+    statusIcon = Icon(
+      Icons.camera_rounded,
+      color: Color(0xFFFFFFFF),
+    );
   }
 
   // In order to get hot reload to work we need to pause the camera if the platform
@@ -251,7 +255,17 @@ class _QRViewExampleState extends State<QRViewExample> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
-        children: <Widget>[Expanded(flex: 4, child: _buildQrView(context)), Expanded(flex: 1, child: isLoading ? Center(child: CircularProgressIndicator(color: Colors.white,)) : statusWidget)],
+        children: <Widget>[
+          Expanded(flex: 4, child: _buildQrView(context)),
+          Expanded(
+              flex: 1,
+              child: isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                      color: Colors.white,
+                    ))
+                  : statusWidget)
+        ],
       ),
     );
   }
