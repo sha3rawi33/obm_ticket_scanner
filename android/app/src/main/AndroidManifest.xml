@@ -2,6 +2,7 @@
     package="com.plebits.obmscan.ticket_scanner">
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:name="io.flutter.app.FlutterApplication"
         android:icon="@mipmap/launcher_icon"
