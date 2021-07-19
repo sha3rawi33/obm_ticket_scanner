@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'package:vibration/vibration.dart';
@@ -137,14 +138,29 @@ class _QRViewExampleState extends State<QRViewExample> {
   Barcode? result;
   QRViewController? controller;
   final GlobalKey qrKey = GlobalKey();
-  Widget status = Icon(
+  Widget statusIcon = Icon(
     Icons.camera_rounded,
-    color: Colors.white,
+    color: Color(0xFFFFFFFF),
   );
+  String widgetText = "start scanning tickets to show their status";
+
   Color buttonColor = Colors.blueAccent;
+  Color statusColor = Colors.blueGrey;
   bool flashOn = false;
   bool frontCam = false;
   bool isScanning = true;
+  late Widget statusWidget;
+
+  void setDefault() {
+    setState(() {
+      flashOn = false;
+      frontCam = false;
+      buttonColor = Colors.blueAccent;
+      isScanning = true;
+      widgetText = "start scanning tickets to show their status";
+      statusColor = Colors.blueGrey;
+    });
+  }
 
   // In order to get hot reload to work we need to pause the camera if the platform
   // is android, or resume the camera if the platform is iOS.
@@ -159,8 +175,30 @@ class _QRViewExampleState extends State<QRViewExample> {
 
   @override
   Widget build(BuildContext context) {
+    statusWidget = Padding(
+      padding: EdgeInsets.fromLTRB(30, 20, 30, 30),
+      child: Container(
+        decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(10)), color: statusColor),
+        width: double.infinity,
+        height: double.infinity,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              widgetText,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
     return Scaffold(
-      floatingActionButton: FloatingActionButton(backgroundColor: buttonColor, onPressed: () {}, child: status),
+      floatingActionButton: FloatingActionButton(backgroundColor: buttonColor, onPressed: () {}, child: statusIcon),
       bottomNavigationBar: BottomAppBar(
         color: Color(0xFF1de6af),
         shape: CircularNotchedRectangle(),
@@ -197,6 +235,7 @@ class _QRViewExampleState extends State<QRViewExample> {
                 setState(() {
                   isScanning = !isScanning;
                 });
+                setDefault();
                 isScanning ? await controller?.resumeCamera() : await controller?.pauseCamera();
               },
             ),
@@ -214,21 +253,7 @@ class _QRViewExampleState extends State<QRViewExample> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
-        children: <Widget>[
-          Expanded(flex: 4, child: _buildQrView(context)),
-          Expanded(
-            flex: 1,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: <Widget>[
-                SizedBox(
-                  height: 10,
-                ),
-                // status,
-              ],
-            ),
-          )
-        ],
+        children: <Widget>[Expanded(flex: 4, child: _buildQrView(context)), Expanded(flex: 1, child: statusWidget)],
       ),
     );
   }
@@ -257,7 +282,7 @@ class _QRViewExampleState extends State<QRViewExample> {
     controller.scannedDataStream.listen((scanData) async {
       print("SCANNED: ${scanData.code}");
       await controller.pauseCamera();
-      await checkCode(scanData.code, null).then((value) {
+      await checkCode(scanData.code).then((value) {
         print(value);
       });
     });
@@ -279,13 +304,12 @@ class _QRViewExampleState extends State<QRViewExample> {
     super.dispose();
   }
 
-  Future checkCode(String? code, String? url) async {
+  Future checkCode(String? code) async {
     Vibration.cancel();
-    url = "http://gradesaver.xyz/api/users/event";
     try {
       String body = code!.replaceAll("code", "ticket");
       var response = await http.post(
-        Uri.parse(url),
+        Uri.parse(apiURL),
         body: body,
         headers: {"Accept": "*", "Content-Type": "application/json"},
       );
@@ -294,22 +318,31 @@ class _QRViewExampleState extends State<QRViewExample> {
       print(result);
       setState(() {
         isScanning = false;
-        status = Icon(
+        statusIcon = Icon(
           result == "True"
-              ? Icons.add
+              ? Icons.verified_user
               : result == "Entered"
-                  ? Icons.replay_circle_filled
+                  ? Icons.people
                   : result == "Hold"
-                      ? Icons.pause
-                      : Icons.error_outline,
+                      ? Icons.watch_later
+                      : Icons.error,
+          color: Colors.white,
         );
         buttonColor = result == "True"
             ? Colors.green
             : result == "Entered"
                 ? Colors.black
                 : result == "Hold"
-                    ? Colors.yellowAccent
+                    ? Colors.amber
                     : Colors.red;
+        statusColor = buttonColor;
+        widgetText = result == "True"
+            ? "Welcome! You can enter."
+            : result == "Entered"
+                ? "You've entered once before :("
+                : result == "Hold"
+                    ? "Ticket is still on hold"
+                    : "Invalid ticket!";
       });
 
       result == "True"
@@ -326,18 +359,3 @@ class _QRViewExampleState extends State<QRViewExample> {
     }
   }
 }
-
-// child: Row(
-//   children: [
-//     Text(
-//       result == "True"
-//           ? "Welcome! You can enter."
-//           : result == "Entered"
-//               ? "You've entered once before :("
-//               : result == "Hold"
-//                   ? "Ticket is still in hold"
-//                   : "Invalid ticket!",
-//       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-//     ),
-//   ],
-// ),
