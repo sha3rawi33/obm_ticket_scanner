@@ -149,17 +149,15 @@ class _QRViewExampleState extends State<QRViewExample> {
   bool flashOn = false;
   bool frontCam = false;
   bool isScanning = true;
+  bool isLoading = false;
   late Widget statusWidget;
 
   void setDefault() {
-    setState(() {
       flashOn = false;
       frontCam = false;
       buttonColor = Colors.blueAccent;
-      isScanning = true;
       widgetText = "start scanning tickets to show their status";
       statusColor = Colors.blueGrey;
-    });
   }
 
   // In order to get hot reload to work we need to pause the camera if the platform
@@ -232,10 +230,10 @@ class _QRViewExampleState extends State<QRViewExample> {
               icon: Icon(isScanning ? Icons.stop : Icons.play_arrow),
               color: Color(0xFF102334),
               onPressed: () async {
+                setDefault();
                 setState(() {
                   isScanning = !isScanning;
                 });
-                setDefault();
                 isScanning ? await controller?.resumeCamera() : await controller?.pauseCamera();
               },
             ),
@@ -253,7 +251,7 @@ class _QRViewExampleState extends State<QRViewExample> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
-        children: <Widget>[Expanded(flex: 4, child: _buildQrView(context)), Expanded(flex: 1, child: statusWidget)],
+        children: <Widget>[Expanded(flex: 4, child: _buildQrView(context)), Expanded(flex: 1, child: isLoading ? Center(child: CircularProgressIndicator(color: Colors.white,)) : statusWidget)],
       ),
     );
   }
@@ -306,6 +304,9 @@ class _QRViewExampleState extends State<QRViewExample> {
 
   Future checkCode(String? code) async {
     Vibration.cancel();
+    setState(() {
+      isLoading = true;
+    });
     try {
       String body = code!.replaceAll("code", "ticket");
       var response = await http.post(
@@ -317,6 +318,7 @@ class _QRViewExampleState extends State<QRViewExample> {
       final result = responseData['works'];
       print(result);
       setState(() {
+        isLoading = false;
         isScanning = false;
         statusIcon = Icon(
           result == "True"
