@@ -38,8 +38,12 @@ class QRViewExample extends StatefulWidget {
 class _QRViewExampleState extends State<QRViewExample> {
   Barcode? result;
   QRViewController? controller;
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  Widget status = Text('Scan a ticket');
+  final GlobalKey qrKey = GlobalKey();
+  Widget status = Icon(
+    Icons.camera_rounded,
+    color: Colors.white,
+  );
+  Color buttonColor = Colors.blueAccent;
 
   // In order to get hot reload to work we need to pause the camera if the platform
   // is android, or resume the camera if the platform is iOS.
@@ -55,6 +59,49 @@ class _QRViewExampleState extends State<QRViewExample> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton(backgroundColor: buttonColor, onPressed: () {}, child: status),
+      bottomNavigationBar: BottomAppBar(
+        shape: CircularNotchedRectangle(),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            IconButton(
+              icon: Icon(Icons.flash_on),
+              color: Colors.black,
+              onPressed: () async {
+                await controller?.toggleFlash();
+                setState(() {});
+              },
+            ),
+            IconButton(
+              icon: Icon(Icons.camera_front),
+              color: Colors.black,
+              onPressed: () async {
+                await controller?.flipCamera();
+                setState(() {});
+              },
+            ),
+            SizedBox(
+              width: 40,
+            ),
+            IconButton(
+              icon: Icon(Icons.stop),
+              color: Colors.black,
+              onPressed: () async {
+                await controller?.pauseCamera();
+              },
+            ),
+            IconButton(
+              icon: Icon(Icons.play_arrow),
+              color: Colors.black,
+              onPressed: () async {
+                await controller?.resumeCamera();
+              },
+            ),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
         children: <Widget>[
           Expanded(flex: 4, child: _buildQrView(context)),
@@ -68,69 +115,7 @@ class _QRViewExampleState extends State<QRViewExample> {
                   SizedBox(
                     height: 10,
                   ),
-                  status,
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: <Widget>[
-                      Container(
-                        margin: EdgeInsets.all(8),
-                        child: ElevatedButton(
-                            onPressed: () async {
-                              await controller?.toggleFlash();
-                              setState(() {});
-                            },
-                            child: FutureBuilder(
-                              future: controller?.getFlashStatus(),
-                              builder: (context, snapshot) {
-                                return Text('Flash: ${snapshot.data}');
-                              },
-                            )),
-                      ),
-                      Container(
-                        margin: EdgeInsets.all(8),
-                        child: ElevatedButton(
-                            onPressed: () async {
-                              await controller?.flipCamera();
-                              setState(() {});
-                            },
-                            child: FutureBuilder(
-                              future: controller?.getCameraInfo(),
-                              builder: (context, snapshot) {
-                                if (snapshot.data != null) {
-                                  return Text('Camera facing ${describeEnum(snapshot.data!)}');
-                                } else {
-                                  return Text('loading');
-                                }
-                              },
-                            )),
-                      )
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: <Widget>[
-                      Container(
-                        margin: EdgeInsets.all(8),
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            await controller?.pauseCamera();
-                          },
-                          child: Text('pause', style: TextStyle(fontSize: 20)),
-                        ),
-                      ),
-                      Container(
-                        margin: EdgeInsets.all(8),
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            await controller?.resumeCamera();
-                          },
-                          child: Text('resume', style: TextStyle(fontSize: 20)),
-                        ),
-                      )
-                    ],
-                  ),
+                  // status,
                 ],
               ),
             ),
@@ -141,10 +126,7 @@ class _QRViewExampleState extends State<QRViewExample> {
   }
 
   Widget _buildQrView(BuildContext context) {
-    // For this example we check how width or tall the device is and change the scanArea and overlay accordingly.
     var scanArea = (MediaQuery.of(context).size.width < 400 || MediaQuery.of(context).size.height < 400) ? 200.0 : 300.0;
-    // To ensure the Scanner view is properly sizes after rotation
-    // we need to listen for Flutter SizeChanged notification and update controller
     return QRView(
       key: qrKey,
       onQRViewCreated: _onQRViewCreated,
@@ -168,9 +150,6 @@ class _QRViewExampleState extends State<QRViewExample> {
       await controller.pauseCamera();
       await checkCode(scanData.code, null).then((value) {
         print(value);
-        setState(() {
-          status = value;
-        });
       });
     });
   }
@@ -202,33 +181,42 @@ class _QRViewExampleState extends State<QRViewExample> {
       final responseData = await (jsonDecode(response.body));
       final result = responseData['works'];
       print(result);
-      // return result;
-      return Container(
-        height: 20,
-        color: result == "True"
+      setState(() {
+        status = Icon(
+          result == "True"
+              ? Icons.add
+              : result == "Entered"
+                  ? Icons.replay_circle_filled
+                  : result == "Hold"
+                      ? Icons.pause
+                      : Icons.error_outline,
+        );
+        buttonColor = result == "True"
             ? Colors.green
             : result == "Entered"
                 ? Colors.black
                 : result == "Hold"
                     ? Colors.yellowAccent
-                    : Colors.red,
-        child: Row(
-          children: [
-            Text(
-              result == "True"
-                  ? "Welcome! You can enter."
-                  : result == "Entered"
-                      ? "You've entered once before :("
-                      : result == "Hold"
-                          ? "Ticket is still in hold"
-                          : "Invalid ticket!",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      );
+                    : Colors.red;
+      });
+      return result;
     } catch (e) {
       print(e);
     }
   }
 }
+
+// child: Row(
+//   children: [
+//     Text(
+//       result == "True"
+//           ? "Welcome! You can enter."
+//           : result == "Entered"
+//               ? "You've entered once before :("
+//               : result == "Hold"
+//                   ? "Ticket is still in hold"
+//                   : "Invalid ticket!",
+//       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+//     ),
+//   ],
+// ),
