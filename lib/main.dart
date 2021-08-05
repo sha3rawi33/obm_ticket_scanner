@@ -5,9 +5,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'package:vibration/vibration.dart';
+import 'package:scan/scan.dart';
 
 var apiURL = "http://gradesaver.xyz/api/users/event";
 ThemeData dark = ThemeData(
@@ -135,9 +135,9 @@ class QRViewExample extends StatefulWidget {
 }
 
 class _QRViewExampleState extends State<QRViewExample> {
-  Barcode? result;
-  QRViewController? controller;
-  final GlobalKey qrKey = GlobalKey();
+  ScanController controller = ScanController();
+  String qrcode = 'Unknown';
+
   Widget statusIcon = Icon(
     Icons.camera_rounded,
     color: Color(0xFFFFFFFF),
@@ -147,14 +147,12 @@ class _QRViewExampleState extends State<QRViewExample> {
   Color buttonColor = Colors.blueAccent;
   Color statusColor = Colors.blueGrey;
   bool flashOn = false;
-  bool frontCam = false;
   bool isScanning = true;
   bool isLoading = false;
   late Widget statusWidget;
 
   void setDefault() {
     flashOn = false;
-    frontCam = false;
     buttonColor = Colors.blueAccent;
     widgetText = "start scanning tickets to show their status";
     statusColor = Colors.blueGrey;
@@ -170,9 +168,48 @@ class _QRViewExampleState extends State<QRViewExample> {
   void reassemble() {
     super.reassemble();
     if (Platform.isAndroid) {
-      controller!.pauseCamera();
+      controller.pause();
     }
-    controller!.resumeCamera();
+    controller.resume();
+  }
+
+  Future _asyncInputDialog(BuildContext context) async {
+    String ticketData = '';
+    return showDialog(
+      context: context,
+      barrierDismissible: false, // dialog is dismissible with a tap on the barrier
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Enter code Manually'),
+          content: new Row(
+            children: [
+              new Expanded(
+                  child: new TextField(
+                autofocus: true,
+                decoration: new InputDecoration(labelText: 'Ticket Code', hintText: 'eg. m2pc-6cod-4j7d-3dac'),
+                onChanged: (value) {
+                  ticketData = value;
+                },
+              ))
+            ],
+          ),
+          actions: [
+            FlatButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+            ElevatedButton(
+              child: Text('Check'),
+              onPressed: () async {
+                await checkCode(ticketData).then((value) => Navigator.pop(context));
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -183,19 +220,21 @@ class _QRViewExampleState extends State<QRViewExample> {
         decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(10)), color: statusColor),
         width: double.infinity,
         height: double.infinity,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              widgetText,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widgetText,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -210,25 +249,12 @@ class _QRViewExampleState extends State<QRViewExample> {
             IconButton(
               icon: Icon(flashOn ? Icons.flash_off : Icons.flash_on),
               color: Color(0xFF102334),
-              onPressed: () async {
-                await controller?.toggleFlash();
+              onPressed: () {
+                controller.toggleTorchMode();
                 setState(() {
                   flashOn = !flashOn;
                 });
               },
-            ),
-            IconButton(
-              icon: Icon(frontCam ? Icons.camera_front : Icons.camera_alt),
-              color: Color(0xFF102334),
-              onPressed: () async {
-                await controller?.flipCamera();
-                setState(() {
-                  frontCam = !frontCam;
-                });
-              },
-            ),
-            SizedBox(
-              width: 40,
             ),
             IconButton(
               icon: Icon(isScanning ? Icons.stop : Icons.play_arrow),
@@ -238,7 +264,19 @@ class _QRViewExampleState extends State<QRViewExample> {
                 setState(() {
                   isScanning = !isScanning;
                 });
-                isScanning ? await controller?.resumeCamera() : await controller?.pauseCamera();
+                isScanning ? controller.resume() : controller.pause();
+              },
+            ),
+            SizedBox(
+              width: 40,
+            ),
+            IconButton(
+              icon: Icon(Icons.text_fields),
+              color: Color(0xFF102334),
+              onPressed: () async {
+                setDefault();
+                setState(() {});
+                await _asyncInputDialog(context);
               },
             ),
             IconButton(
@@ -246,7 +284,7 @@ class _QRViewExampleState extends State<QRViewExample> {
               color: Color(0xFF102334),
               onPressed: () {
                 Vibration.cancel();
-                controller?.dispose();
+                super.dispose();
                 Navigator.pop(context);
               },
             ),
@@ -271,48 +309,25 @@ class _QRViewExampleState extends State<QRViewExample> {
   }
 
   Widget _buildQrView(BuildContext context) {
-    var scanArea = (MediaQuery.of(context).size.width < 400 || MediaQuery.of(context).size.height < 400) ? 200.0 : 300.0;
-    return QRView(
-      key: qrKey,
-      onQRViewCreated: _onQRViewCreated,
-      overlay: QrScannerOverlayShape(
-        borderColor: Colors.white,
-        borderRadius: 30,
-        borderLength: 40,
-        borderWidth: 10,
-        cutOutSize: scanArea,
+    return SizedBox(
+      width: 250, // custom wrap size
+      height: 250,
+
+      child: ScanView(
+        controller: controller,
+        scanAreaScale: 0.9,
+        scanLineColor: Colors.red,
+        onCapture: (data) {
+          print(data);
+          checkCode(data);
+        },
       ),
-      onPermissionSet: (ctrl, p) => _onPermissionSet(context, ctrl, p),
     );
-  }
-
-  void _onQRViewCreated(QRViewController controller) {
-    setState(() {
-      this.controller = controller;
-      isScanning = false;
-    });
-    controller.scannedDataStream.listen((scanData) async {
-      print("SCANNED: ${scanData.code}");
-      await controller.pauseCamera();
-      await checkCode(scanData.code).then((value) {
-        print(value);
-      });
-    });
-  }
-
-  void _onPermissionSet(BuildContext context, QRViewController ctrl, bool p) {
-    log('${DateTime.now().toIso8601String()}_onPermissionSet $p');
-    if (!p) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('no Permission')),
-      );
-    }
   }
 
   @override
   void dispose() {
     Vibration.cancel();
-    controller?.dispose();
     super.dispose();
   }
 
@@ -322,7 +337,7 @@ class _QRViewExampleState extends State<QRViewExample> {
       isLoading = true;
     });
     try {
-      String body = code!.replaceAll("code", "ticket");
+      String body = code!.contains("code") ? code.replaceAll("code", "ticket") : '{"ticket": "$code"}';
       var response = await http.post(
         Uri.parse(apiURL),
         body: body,
